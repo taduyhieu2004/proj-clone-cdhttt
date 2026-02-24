@@ -1,0 +1,11 @@
+review_id,review,local_guide_reviews,rating_score,service,meal_type,price_per_person_category,food_score,service_score,atmosphere_score,recommendations_list,date,avg_price_per_person,cleaned_review,vader_sentiment,sentiment_label,pca_cluster,umap_cluster
+0,Great food and friendly staff.,10,5,Dine in,Dinner,,5,5,4,['burger'],2024-01-10,,great food friendly staff,0.6,positive,,
+1,"It was okay, nothing special.",,3,Dine in,Lunch,,3,3,3,[''],2024-01-13,,okay nothing special,0.0,neutral,,
+2,Service was slow and my order was wrong.,2,2,Dine in,Dinner,,2,1,2,[''],2024-01-20,,service slow order wrong,-0.6,negative,,
+3,"Nice atmosphere, decent coffee.",,4,Take away,Breakfast,,4,4,5,['coffee'],2024-01-30,,nice atmosphere decent coffee,0.3,positive,,
+4,Food arrived cold. Not happy.,1,1,Delivery,Dinner,,1,2,2,[''],2024-02-14,,food arrive cold not happy,-0.8,negative,,
+5,Good value and fast service.,,5,Dine in,Lunch,,5,4,4,['salad'],2024-02-29,,good value fast service,0.5,positive,,
+6,"Too noisy at night, but food was fine.",,3,Dine in,Dinner,,3,3,2,[''],2024-03-15,,too noisy night food fine,-0.1,neutral,,
+7,Loved the brunch menu.,,4,Dine in,Brunch,,4,4,4,['pancakes'],2024-03-30,,love brunch menu,0.6,positive,,
+8,Waited 40 minutes. Very disappointed.,5,2,Dine in,Dinner,,2,2,2,[''],2024-04-14,,wait 40 minute disappointed,-0.7,negative,,
+9,"Staff were polite, would come again.",,4,Dine in,Lunch,,4,4,4,[''],2024-04-29,,staff polite would come again,0.4,positive,,

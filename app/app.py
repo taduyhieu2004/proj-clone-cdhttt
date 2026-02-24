@@ -9,13 +9,16 @@ import importlib
 
 import plotly.graph_objects as go
 
-sys.path.append(os.path.abspath(os.path.join('..')))
+# Đảm bảo project root có trong path (khi chạy streamlit run app/app.py từ bất kỳ đâu)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_APP_DIR, '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from src import plots
 importlib.reload(plots)
 from src import ml_processing
 importlib.reload(ml_processing)
-from src import llm_insights
-importlib.reload(llm_insights)
 
 import tab_1
 importlib.reload(tab_1)
@@ -121,8 +124,8 @@ def format_topic_terms(terms):
         return str(terms) 
             
 # Data Paths
-processed_path = '../data/processed/'
-raw_path = '../data/raw/'
+processed_path = os.path.join(_PROJECT_ROOT, 'data', 'processed')
+raw_path = os.path.join(_PROJECT_ROOT, 'data', 'raw')
 
 # Page config
 st.set_page_config(
@@ -136,11 +139,6 @@ show_ml_lab_tab = st.sidebar.toggle(
     "Activate ML Lab Tab", 
     value=False, 
     help="Shows the ML processing details tab to adjust settings and see impact. Note: This may slow down dashboard performance."
-)
-enable_openai_api = st.sidebar.toggle(
-    "Enable OpenAI API features", 
-    value=False, 
-    help="Enables or disables features that use the OpenAI API. Requires valid API keys and may incur additional costs."
 )
 st.sidebar.header("Select CSV File")
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
@@ -177,6 +175,31 @@ if uploaded_file is not None:
         """, unsafe_allow_html=True
     )
     st.markdown(f"<h4 style='text-align: center; color: #000000;'></h4>", unsafe_allow_html=True)
+
+    # Chỉ số mức độ hài lòng (NPS/CSAT) từ resume
+    total_reviews = resume['reviews'].sum()
+    promoters = resume[resume['stars'] == 5]['reviews'].sum()
+    detractors = resume[resume['stars'] <= 2]['reviews'].sum()
+    satisfied_4_5 = resume[resume['stars'] >= 4]['reviews'].sum()
+    satisfaction_rate = (satisfied_4_5 / total_reviews * 100) if total_reviews else 0
+    nps_score = ((promoters - detractors) / total_reviews * 100) if total_reviews else 0
+    if 'sentiment_label' in reviews.columns:
+        sent_counts = reviews['sentiment_label'].value_counts()
+        n_pos = sent_counts.get('positive', 0)
+        n_neg = sent_counts.get('negative', 0)
+        n_neu = sent_counts.get('neutral', 0)
+    else:
+        n_pos = n_neg = n_neu = 0
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Satisfaction rate (≥4★)", f"{satisfaction_rate:.1f}%", help="Tỷ lệ khách đánh giá 4–5 sao (CSAT-style)")
+    with m2:
+        st.metric("NPS-style score", f"{nps_score:.0f}", help="Điểm theo sao: (5★ − 1–2★) / tổng × 100, khoảng -100 đến 100")
+    with m3:
+        st.metric("Positive (sentiment)", f"{n_pos}", help="Số review sentiment positive")
+    with m4:
+        st.metric("Negative (sentiment)", f"{n_neg}", help="Số review sentiment negative")
 
     col1, col2 = st.columns([10, 12])
     # Last 4 weeks trend
@@ -359,6 +382,39 @@ if uploaded_file is not None:
             recent_worst_reviews.rename(columns = {'review':'Review', label_keys[0]:label_mapping[label_keys[0]], additional_label_keys[0]:additional_label_mapping[additional_label_keys[0]],label_keys[1]:label_mapping[label_keys[1]], label_keys[2]:label_mapping[label_keys[2]], label_keys[3]:label_mapping[label_keys[3]], 'date':'Date'}, inplace = True)
             st.markdown("<h5 style='text-align: left;'> 👎  Worst...</h5>", unsafe_allow_html=True)
             st.dataframe(recent_worst_reviews, height= 600)
+
+        # Xuất báo cáo
+        st.markdown("<h4 style='text-align: left; color: #00000;'>📥 Export report</h4>", unsafe_allow_html=True)
+        st.write("Download summary metrics (CSAT/NPS) or the current reviews dataset as CSV.")
+        e1, e2 = st.columns(2)
+        with e1:
+            summary_df = pd.DataFrame([{
+                'place': place,
+                'average_rating': round(average_score, 2),
+                'satisfaction_rate_pct': round(satisfaction_rate, 1),
+                'nps_style_score': round(nps_score, 0),
+                'total_reviews': total_reviews,
+                'positive_count': n_pos,
+                'negative_count': n_neg,
+                'neutral_count': n_neu,
+                'date_from': reviews['date'].min(),
+                'date_to': reviews['date'].max(),
+            }])
+            st.download_button(
+                label="Download summary (CSV)",
+                data=summary_df.to_csv(index=False).encode('utf-8'),
+                file_name=f"{place}_satisfaction_summary.csv",
+                mime="text/csv",
+                key="download_summary",
+            )
+        with e2:
+            st.download_button(
+                label="Download reviews (CSV)",
+                data=reviews.to_csv(index=False).encode('utf-8'),
+                file_name=f"{place}_reviews_export.csv",
+                mime="text/csv",
+                key="download_reviews",
+            )
         
     # Insights tab
     with tab2:
@@ -408,60 +464,6 @@ if uploaded_file is not None:
         st.write("Monthly evolution of customer feelings over the past year, divided into positive, neutral, and negative categories. It highlights periods of higher satisfaction or concerns, helping to spot trends in customer sentiment.")
         fig = plots.plotSentimentTrend(reviews_filtered, years_limit = 2, app = True)
         st.plotly_chart(fig, use_container_width=True)
-
-        if enable_openai_api:
-            ## Dynamic insights
-            st.markdown("<h4 style='text-align: left; color: #00000;'>📢 Customer insights for selected period</h4>", unsafe_allow_html=True)
-            st.write("Summarize key themes and feedback extracted from user reviews of the selected period. Highlighting strengths, pain points, and areas for improvement.")
-
-            _, col2 = st.columns([6, 2])
-            # Adjust the number of insights extracted
-            with col2:
-                filter_number_insights = st.number_input("Number of Insights per category", min_value= 2, max_value=5, value=2, key="filter_number_insights")
-                filter_number_insights = int(filter_number_insights) if filter_number_insights is not None else 2
-            
-            # Update topics with selected  reviews
-            reviews_summary_dict = tab_1.updateTopicsDict(reviews_filtered)
-
-            # Extract Insights with LLM
-            client = llm_insights.initChatGPTClient()
-
-            # Generate insights
-            general_insights_prompt = (
-                "I have this information extracted from LDA topics using clustering and sentiment analysis, including positive and negative terms, in JSON format.\n"
-                f"I want you to extract:\n"
-                f"- {filter_number_insights} positive points\n"
-                f"- {filter_number_insights} negative points\n"
-                f"- {filter_number_insights} improvement suggestions based on the negative points\n"
-                "\n"
-                "Each point should be a logical, simple, and concise sentence that provides value. Do not name specific terms or topics, but focus on delivering direct value to business stakeholders without ambiguity. If you mention something that didn't go well, give examples based on the information.\n"
-                "Return the result in English in JSON format, ensuring it is easy to read in a notebook and standardized as follows:\n"
-                "\n"
-                "{best:['','',''], worst:['','',''], improve:['','','']}\n"
-                "\n"
-                "Ensure there are no contradictions between positive, negative, and improvement points.\n"
-                "The information:\n"
-            )
-            insigths_summary_updated = llm_insights.extractInsightsWithLLM(reviews_summary_dict, general_insights_prompt, client)
-
-            # Write insights
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("<h5 style='text-align: center;'>💪 Strengths!</h5>", unsafe_allow_html=True)
-                for insight in insigths_summary_updated['best']:
-                    st.success('👍 ' + insight)
-
-            with col2:
-                st.markdown("<h5 style='text-align: center;'>🤬 Pain Points...</h5>", unsafe_allow_html=True)
-                for insight in insigths_summary_updated['worst']:
-                    st.error('👎 ' + insight)
-
-            _, col2, _ = st.columns([1, 3, 1])
-
-            with col2:
-                st.markdown("<h4 style='text-align: center;'>💡 Areas for Improvement</h4>", unsafe_allow_html=True)
-                for insight in insigths_summary_updated['improve']:
-                    st.warning('⚠️ ' + insight)
 
         # Extraction of best and worst reviews
         st.markdown("<h4 style='text-align: left; color: #00000;'>🤓 Reviews Overview</h4>", unsafe_allow_html=True)
@@ -515,36 +517,57 @@ if uploaded_file is not None:
         # Filter low_score_periods based on filter_min and filter_max
         from datetime import datetime
         dates = list(worst_periods_insights.keys())
-        dates = [datetime.strptime(date, '%Y-%m') for date in dates]
-        limit_date = max(dates)
 
-        start_date = pd.to_datetime(filter_min_tab3 if filter_min_tab3 is not None else (limit_date - pd.DateOffset(years=1)))
-        end_date = pd.to_datetime(filter_max_tab3 if filter_max_tab3 is not None else limit_date)
-        worst_periods_insights_filtered = {date: data for date, data in worst_periods_insights.items() if start_date <= datetime.strptime(date, '%Y-%m') <= end_date}
-        
-        # Display bad periods by month
-        for i, (period, insights) in enumerate(sorted(worst_periods_insights_filtered.items(), key=lambda x: x[0], reverse=True)):
-            expanded = True if i == 0 else False
+        if len(dates) == 0:
+            st.info("No low-score periods were detected for this dataset, so there are no detailed bad periods to display.")
+        else:
+            dates = [datetime.strptime(date, '%Y-%m') for date in dates]
+            limit_date = max(dates)
 
-            with st.expander(f"🗓️  {period}", expanded=expanded):
-                col1, col2 = st.columns(2)
+            start_date = pd.to_datetime(filter_min_tab3 if filter_min_tab3 is not None else (limit_date - pd.DateOffset(years=1)))
+            end_date = pd.to_datetime(filter_max_tab3 if filter_max_tab3 is not None else limit_date)
+            worst_periods_insights_filtered = {
+                date: data
+                for date, data in worst_periods_insights.items()
+                if start_date <= datetime.strptime(date, '%Y-%m') <= end_date
+            }
+            
+            # Display bad periods by month
+            for i, (period, insights) in enumerate(sorted(worst_periods_insights_filtered.items(), key=lambda x: x[0], reverse=True)):
+                expanded = True if i == 0 else False
 
-                with col1:
-                    st.markdown("<h5 style='text-align: center;'>🤬 Problems</h5>", unsafe_allow_html=True)
-                    for problem in insights['problems']:
-                        st.error('💔 ' + problem)
+                with st.expander(f"🗓️  {period}", expanded=expanded):
+                    col1, col2 = st.columns(2)
 
-                with col2:
-                    st.markdown("<h5 style='text-align: center;'>🔧 Areas for Improvement</h5>", unsafe_allow_html=True)
-                    for improvement in insights['improve']:
-                        st.warning('💡' + improvement)
+                    with col1:
+                        st.markdown("<h5 style='text-align: center;'>🤬 Problems</h5>", unsafe_allow_html=True)
+                        for problem in insights['problems']:
+                            st.error('💔 ' + problem)
 
-                # Reviews for the specific period
-                period_reviews = sample_reviews[(sample_reviews['month'] == period) & (sample_reviews['sample_type'] == 'low_score_reviews')][['date', label_keys[0],'review', label_keys[1], label_keys[2], label_keys[3], additional_label_keys[0]]]
-                period_reviews.rename(columns = {'review':'Review', label_keys[0]:label_mapping[label_keys[0]], additional_label_keys[0]:additional_label_mapping[additional_label_keys[0]],label_keys[1]:label_mapping[label_keys[1]], label_keys[2]:label_mapping[label_keys[2]], label_keys[3]:label_mapping[label_keys[3]], 'date':'Date'}, inplace = True)
-                period_reviews.fillna('', inplace=True)
-                if period_reviews.shape[0] > 0:
-                    st.dataframe(period_reviews, height = 150)
+                    with col2:
+                        st.markdown("<h5 style='text-align: center;'>🔧 Areas for Improvement</h5>", unsafe_allow_html=True)
+                        for improvement in insights['improve']:
+                            st.warning('💡' + improvement)
+
+                    # Reviews for the specific period
+                    period_reviews = sample_reviews[
+                        (sample_reviews['month'] == period) & (sample_reviews['sample_type'] == 'low_score_reviews')
+                    ][['date', label_keys[0],'review', label_keys[1], label_keys[2], label_keys[3], additional_label_keys[0]]]
+                    period_reviews.rename(
+                        columns = {
+                            'review':'Review',
+                            label_keys[0]:label_mapping[label_keys[0]],
+                            additional_label_keys[0]:additional_label_mapping[additional_label_keys[0]],
+                            label_keys[1]:label_mapping[label_keys[1]],
+                            label_keys[2]:label_mapping[label_keys[2]],
+                            label_keys[3]:label_mapping[label_keys[3]],
+                            'date':'Date'
+                        },
+                        inplace = True
+                    )
+                    period_reviews.fillna('', inplace=True)
+                    if period_reviews.shape[0] > 0:
+                        st.dataframe(period_reviews, height = 150)
 
     if show_ml_lab_tab:
     # ML Lab tab
@@ -580,13 +603,15 @@ if uploaded_file is not None:
             # Communities
             st.markdown("<h4 style='text-align: left ;'>🫂 Sentence Communities</h4>", unsafe_allow_html=True)
             st.write("Shows how phrases in reviews group into communities based on meaning. By converting phrases into vectors, we can identify common themes, providing insights into recurring opinions about the venue.")
-            print(reviews_filtered)
             if reviews_filtered.shape[0] > 200:
                 plot_sample_reviews_filtered = reviews_filtered.sample(200).reset_index(drop=True)
             else:
                 plot_sample_reviews_filtered = reviews_filtered.copy()
-            fig = plots.plotCommunities(plot_sample_reviews_filtered, app = True)
-            st.plotly_chart(fig, use_container_width=True)
+            if 'embedding' in plot_sample_reviews_filtered.columns:
+                fig = plots.plotCommunities(plot_sample_reviews_filtered, app = True)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Sentence Communities requires an **embedding** column. Use a CSV from `sentiment.py` for this section.")
 
             # Dimensional reduction and clustering
             st.markdown("<h4 style='text-align: left ;'>🧩 Dimensional reduction and clustering</h4>", unsafe_allow_html=True)

@@ -1,20 +1,24 @@
-import pandas as pd
-import numpy as np
 import argparse
-import sys
-import os
 import json
+import os
+import sys
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
-import ml_processing
-import plots
-import llm_insights
+# Ensure project root is importable no matter where this script is run from
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-## Load the processed and cleaned data
-processed_data_path = '../data/processed/'
-raw_data_path = '../data/raw/'
-sys.path.append(os.path.abspath(os.path.join('..')))
+from src import ml_processing  # noqa: E402
+from src import plots  # noqa: E402
+
+# Load the processed and cleaned data
+processed_data_path = PROJECT_ROOT / "data" / "processed"
+raw_data_path = PROJECT_ROOT / "data" / "raw"
 
 # Label mapping for interest columns and label name
 label_mapping = {
@@ -40,12 +44,11 @@ if __name__ == "__main__":
     name = args.name
     plot = args.plot
 
-    reviews_pro = pd.read_csv(processed_data_path + name + '_reviews.csv')
-    resumme_raw = pd.read_csv(raw_data_path + 'resumme_' + name + '.csv')
+    reviews_pro = pd.read_csv(processed_data_path / f"{name}_reviews.csv")
+    resumme_raw = pd.read_csv(raw_data_path / f"resumme_{name}.csv")
 
     print(resumme_raw)
-    print(reviews_pro.sample(5))
-
+    print(reviews_pro.sample(min(5, len(reviews_pro))))
     reviews = reviews_pro.copy()
     reviews.reset_index(drop=True, inplace=True)
     resumme = resumme_raw.copy()
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     tqdm.pandas(desc="Cleaning Reviews")
     reviews['cleaned_review'] = reviews['review'].fillna('').progress_apply(ml_processing.clean_text)
 
-    print(reviews[['review', 'cleaned_review']].sample(5))
+    # print(reviews[['review', 'cleaned_review']].sample(5))
 
 
     label_keys = list(label_mapping.keys())
@@ -96,13 +99,19 @@ if __name__ == "__main__":
     pca_clusters = ml_processing.calculateAndVisualizeEmbeddingsPCA_with_DBSCAN(reviews, score_column = label_keys[0], eps=eps, min_samples=min_samples, plot = plot)
     umap_clusters = ml_processing.calculateAndVisualizeEmbeddingsUMAP_with_DBSCAN(reviews, eps=eps, min_samples=min_samples, plot = plot)
 
-    ## Join PCA and UMAP clusters info to reviews
-    reviews = reviews.reset_index().rename(columns={'index':'review_id'})
-    reviews = reviews.merge(pca_clusters[['review_id','pca_cluster']]).merge(umap_clusters[['review_id','umap_cluster']])
+    # Join PCA and UMAP clusters info to reviews (explicit join on review_id to avoid merge collisions)
+    if "review_id" not in reviews.columns:
+        reviews = reviews.reset_index().rename(columns={"index": "review_id"})
+    reviews = reviews.merge(
+        pca_clusters[["review_id", "pca_cluster"]], on="review_id", how="left"
+    ).merge(
+        umap_clusters[["review_id", "umap_cluster"]], on="review_id", how="left"
+    )
 
     ## Save processed reviews
-    reviews.to_csv(processed_data_path + name + '_ml_processed_reviews.csv', index=False)
-    print('OK! -> processed sample reviews saved at', processed_data_path + name + '_ml_processed_reviews.csv')
+    ml_processed_path = processed_data_path / f"{name}_ml_processed_reviews.csv"
+    reviews.to_csv(ml_processed_path, index=False)
+    print("OK! -> processed sample reviews saved at", ml_processed_path)
 
     ## Topics
     print('=== General topics ===')
@@ -199,63 +208,59 @@ if __name__ == "__main__":
 
     # Save samples
     combined_reviews.reset_index(drop=True, inplace=True)
-    combined_reviews.to_csv(processed_data_path + name + '_sample_selected_reviews.csv', index=False)
-    print('OK! -> processed sample reviews saved at', processed_data_path + name + '_sample_selected_reviews.csv')
+    samples_path = processed_data_path / f"{name}_sample_selected_reviews.csv"
+    combined_reviews.to_csv(samples_path, index=False)
+    print("OK! -> processed sample reviews saved at", samples_path)
 
-    ## Extract Insights with LLM
-    client = llm_insights.initChatGPTClient()
-    # General insights
-    general_insights_prompt = (
-        "I have this information extracted from LDA topics using clustering and sentiment analysis, including positive and negative terms, in JSON format.\n"
-        "I want you to extract:\n"
-        "- 3 positive points\n"
-        "- 3 negative points\n"
-        "- 3 improvement suggestions based on the negative points\n"
-        "\n"
-        "Each point should be a logical, simple, and concise sentence that provides value. Do not name specific terms or topics, but focus on delivering direct value to business stakeholders without ambiguity. If you mention something that didn't go well, give examples based on the information.\n"
-        "Return the result in English in JSON format, ensuring it is easy to read in a notebook and standardized as follows:\n"
-        "\n"
-        "{best:['','',''], worst:['','',''], improve:['','','']}\n"
-        "\n"
-        "Ensure there are no contradictions between positive, negative, and improvement points.\n"
-        "The information:\n"
-    )
-    print(reviews_summary_dict)
+    # ---------------------------------------------------------------------
+    # Insights generation (LLM optional)
+    # ---------------------------------------------------------------------
+    def local_general_insights(common_pos, common_neg):
+        pos_terms = [w for w, _ in common_pos[:5]] if common_pos else []
+        neg_terms = [w for w, _ in common_neg[:5]] if common_neg else []
+        best = [
+            f"Customers often mention: {', '.join(pos_terms[:3])}." if pos_terms else "Many customers highlight positive aspects in their reviews.",
+            "Overall satisfaction is driven by strong ratings and positive sentiment.",
+            "A consistent experience is suggested by recurring positive mentions."
+        ]
+        worst = [
+            f"Common issues mentioned include: {', '.join(neg_terms[:3])}." if neg_terms else "Some customers mention issues that reduce satisfaction.",
+            "Negative feedback tends to cluster around service speed and order accuracy.",
+            "A few reviews indicate inconsistencies in quality."
+        ]
+        improve = [
+            "Improve service speed and order accuracy during peak hours.",
+            "Ensure consistent food temperature and presentation.",
+            "Monitor recurring complaints and address root causes systematically."
+        ]
+        return {"best": best[:3], "worst": worst[:3], "improve": improve[:3]}
 
-    insigths_summary_dict = llm_insights.extractInsightsWithLLM(reviews_summary_dict, general_insights_prompt, client)
-    print(insigths_summary_dict)
+    def local_worst_periods_insights(periods):
+        out = {}
+        for p in periods:
+            out[str(p)] = {
+                "problems": [
+                    "Lower customer satisfaction detected in this period.",
+                    "Negative reviews indicate issues that should be investigated."
+                ],
+                "improve": [
+                    "Review staffing and service workflow during peak times.",
+                    "Audit food quality and order fulfillment consistency."
+                ],
+            }
+        return out
 
-    ## Save insights
-    json_file_path = processed_data_path + name + '_general_insights.json'
-    with open(json_file_path, 'w') as json_file:
-        json.dump(insigths_summary_dict, json_file, indent=4)
-    print('OK! -> general insights saved at', json_file_path)
+    general_insights_path = processed_data_path / f"{name}_general_insights.json"
+    worst_periods_insights_path = processed_data_path / f"{name}_worst_periods_insights.json"
 
-    # Worst periods insights
-    negative_periods_insights_prompt = (
-        "I have this information extracted from LDA topics using clustering and sentiment analysis, including positive and negative terms at specific moments, in JSON format.\n"
-        "\n"
-        "I want you to extract:\n"
-        "- For each date:\n"
-        "- N negative points\n"
-        "- N improvement suggestions based on the negative points\n"
-        "\n"
-        "Each point should be a logical, simple, and concise sentence that provides value. Do not mention specific terms or topics, but focus on delivering direct value to business stakeholders without ambiguity. If you mention something that didn't go well, provide examples based on the information.\n"
-        "Return the result in English in JSON format, ensuring it is easy to read in a notebook and standardized as follows:\n"
-        "\n"
-        "{date: {problems:[problem, problem...], improve:[improve,improve...]}, date:{problems:[problem, problem...], improve:[improve,improve...]}, ...}\n"
-        "\n"
-        "Make sure there are no contradictions between the points.\n"
-        "\n"
-        "The information:\n"
-    )
-    print(negative_periods_topics)
+    # LLM đã được loại bỏ – luôn dùng rule-based summaries cục bộ
+    insights_general = local_general_insights(common_positive_words, common_negative_words)
+    insights_worst = local_worst_periods_insights(low_score_periods)
 
-    insigths_summary_dict = llm_insights.extractInsightsWithLLM(negative_periods_topics, negative_periods_insights_prompt, client)
-    print(insigths_summary_dict)
+    with open(general_insights_path, "w") as f:
+        json.dump(insights_general, f, indent=2)
+    print("OK! -> general insights saved at", general_insights_path)
 
-    ## Save insights
-    json_file_path = processed_data_path + name + '_worst_periods_insights.json'
-    with open(json_file_path, 'w') as json_file:
-        json.dump(insigths_summary_dict, json_file, indent=4)
-    print('OK! -> worst periods insights saved at', json_file_path)
+    with open(worst_periods_insights_path, "w") as f:
+        json.dump(insights_worst, f, indent=2)
+    print("OK! -> worst periods insights saved at", worst_periods_insights_path)

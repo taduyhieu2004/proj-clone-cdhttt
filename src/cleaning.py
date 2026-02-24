@@ -32,58 +32,65 @@ def applyExtractDetails(df, search_words=None):
     return df
 
 def extractReviewCount(text):
-    # Extracts the number of reviews from a string (if present) and returns it as an integer.
+    # Extracts the number of reviews from a string (Spanish "reseñas" or English "reviews").
 
-    if isinstance(text, str):  # Verify if its a string
-        match = re.search(r'(\d+)\s+reseñas', text)
+    if isinstance(text, str):
+        match = re.search(r'(\d+)\s+(?:reseñas|reviews)', text, re.IGNORECASE)
         if match:
             return int(match.group(1))
     return None
 
 def extractStarRating(text):
-    # Extracts the star rating (out of 5) from a review string and returns it as an integer.
+    # Extracts the star rating (out of 5) from a review string (Spanish "estrellas" or English "stars").
 
-    match = re.search(r'(\d+)\s+estrellas', text)
-    if match:
-        return int(match.group(1))
+    if isinstance(text, str):
+        match = re.search(r'(\d+)\s+(?:estrellas|stars)', text, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
     return None
 
 def extractRecommendations(recommendations):
-    # Splits a list of recommended dishes in the review, handling cases with "y" (e.g., "X y Y").
+    # Splits a list of recommended dishes; handles " and " (English) and " y " (Spanish).
 
     recommendations_list = recommendations.split(', ')
-    if ' y ' in recommendations_list[-1]:
-        last_dishes = recommendations_list[-1].rsplit(' y ', 1)
-        recommendations_list = recommendations_list[:-1] + last_dishes
+    if recommendations_list:
+        last = recommendations_list[-1]
+        if ' and ' in last:
+            parts = last.rsplit(' and ', 1)
+            recommendations_list = recommendations_list[:-1] + [p.strip() for p in parts]
+        elif ' y ' in last:
+            parts = last.rsplit(' y ', 1)
+            recommendations_list = recommendations_list[:-1] + [p.strip() for p in parts]
     return recommendations_list
 
 def convertToDate(date_text):
-    # Converts relative date information (e.g., "2 weeks ago", "3 months ago") into an exact date.
-    # It handles weeks, months, and years and returns the corresponding start date.
+    # Converts relative date (e.g. "2 weeks ago", "3 months ago") to an exact date.
+    # Supports English (week/month/year) and Spanish (semana/mes/año).
 
+    if not isinstance(date_text, str):
+        return None
+    date_text_lower = date_text.lower()
     today = datetime.today()
 
-    if 'semana' in date_text:
-        # Extract number of weeks, default to 1 if no number is present
+    # Weeks: "semana" (Spanish) or "week" (English)
+    if 'semana' in date_text_lower or 'week' in date_text_lower:
         weeks = pd.Series(date_text).str.extract(r'(\d+)')[0]
         weeks = int(weeks.iloc[0]) if pd.notna(weeks.iloc[0]) else 1
-        monday_of_current_week = today - timedelta(days=today.weekday())  # Get Monday of the current week
+        monday_of_current_week = today - timedelta(days=today.weekday())
         return monday_of_current_week.date() - timedelta(weeks=weeks)
 
-    elif 'mes' in date_text:
-        # Extract number of months, default to 1 if no number is present
+    # Months: "mes" (Spanish) or "month" (English)
+    if 'mes' in date_text_lower or 'month' in date_text_lower:
         months = pd.Series(date_text).str.extract(r'(\d+)')[0]
         months = int(months.iloc[0]) if pd.notna(months.iloc[0]) else 1
         target_date = today - relativedelta(months=months)
-        # Return the first day of the target month
         return target_date.replace(day=1).date()
 
-    elif 'año' in date_text:
-        # Extract number of years, default to 1 if no number is present
+    # Years: "año" (Spanish) or "year" (English)
+    if 'año' in date_text_lower or 'year' in date_text_lower:
         years = pd.Series(date_text).str.extract(r'(\d+)')[0]
         years = int(years.iloc[0]) if pd.notna(years.iloc[0]) else 1
         target_date = today - relativedelta(years=years)
-        # Return the first day of the target year
         return target_date.replace(month=1, day=1).date()
 
-    return None  # Return None if no match is found
+    return None

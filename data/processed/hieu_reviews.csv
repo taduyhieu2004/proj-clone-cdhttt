@@ -1,0 +1,11 @@
+review_id,review,local_guide_reviews,rating_score,service,meal_type,price_per_person_category,food_score,service_score,atmosphere_score,recommendations_list,date,avg_price_per_person
+0,"Great experience, staff were very friendly and the food was tasty.",,5,,,,5,5,5,[''],2024-01-10,
+1,Service was slow and my drink arrived late.,,2,,,,2,2,2,[''],2024-01-18,
+2,Average visit. The food was fine but nothing special.,,3,,,,3,3,3,[''],2024-02-02,
+3,Really liked the atmosphere and the music.,,4,,,,4,4,4,[''],2024-02-15,
+4,The burger was overcooked and the fries were cold.,,1,,,,1,1,1,[''],2024-03-01,
+5,"Nice brunch spot, pancakes and coffee were great.",,5,,,,5,5,5,[''],2024-03-20,
+6,"Too noisy in the evening, hard to talk.",,2,,,,2,2,2,[''],2024-04-05,
+7,"Quick lunch, good value for money.",,4,,,,4,4,4,[''],2024-04-22,
+8,"Had to wait a long time to be seated, not happy.",,2,,,,2,2,2,[''],2024-05-03,
+9,"Desserts were delicious, will come back again.",,5,,,,5,5,5,[''],2024-05-18,

@@ -222,7 +222,12 @@ def plotSentimentTrend(df, years_limit = 2, app = False):
 
 # Compute k-nearest neighbors
 def plotKdistance(reduced_embeddings, k=5, method='PCA', app = False):
-    neighbors = NearestNeighbors(n_neighbors=k)
+    if reduced_embeddings is None or len(reduced_embeddings) == 0:
+        fig = go.Figure()
+        fig.add_annotation(text="No embedding data.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(height=400)
+        return fig
+    neighbors = NearestNeighbors(n_neighbors=min(k, len(reduced_embeddings)))
     neighbors_fit = neighbors.fit(reduced_embeddings)
     distances, _ = neighbors_fit.kneighbors(reduced_embeddings)
     
@@ -260,6 +265,15 @@ def plotKdistance(reduced_embeddings, k=5, method='PCA', app = False):
 
 # Plot reviews by communities, using embeddingsm cosine_similarity and Girvan-Newman algorithm
 def plotCommunities(reviews, app = False):
+    if 'embedding' not in reviews.columns:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="This visualization requires an <b>embedding</b> column.<br>Use a CSV from sentiment.py for full ML Lab features.",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14), align="center"
+        )
+        fig.update_layout(height=400)
+        return fig
     # Load embeddings from reviews
     ebm_reviews = np.array(reviews['embedding'].tolist())
 

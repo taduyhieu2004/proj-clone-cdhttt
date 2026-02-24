@@ -29,16 +29,17 @@ import plotly.express as px
 nltk.download('stopwords')
 nltk.download('vader_lexicon')
 
-# Clean text, stopworks and tokenize words
+# Clean text, stopwords and tokenize words (English)
 def clean_text(text):
-    # Load spaCy Spanish model
-    nlp = spacy.load('es_core_news_sm')
+    # Load spaCy English model
+    nlp = spacy.load('en_core_web_sm')
 
     text = text.lower()
-    text = re.sub(r'[^a-záéíóúñü0-9\s]', '', text)
+    # Keep only letters (a-z), digits and spaces (English text)
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
     
     doc = nlp(text)
-    stop_words = set(stopwords.words('spanish'))
+    stop_words = set(stopwords.words('english'))
     tokens = [token.lemma_ for token in doc 
               if token.text not in stop_words and not token.is_punct and not token.is_space]
     return ' '.join(tokens)
@@ -269,6 +270,12 @@ def format_words(words_list):
 
 # UMAP Embeddings Visualization
 def calculateAndVisualizeEmbeddingsUMAP(df, plot = True, app = False):
+    if 'embedding' not in df.columns:
+        empty = np.array([]).reshape(0, 2)
+        fig = px.scatter(title="Embedding column required. Use a CSV from sentiment.py.")
+        fig.add_annotation(text="No embedding column.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(height=400)
+        return (empty, fig) if app else empty
     embeddings = np.array(df['embedding'].tolist())
     sentiment_labels = df['sentiment_label']
 
@@ -308,6 +315,12 @@ def calculateAndVisualizeEmbeddingsUMAP(df, plot = True, app = False):
 
 # PCA Embeddings Visualization
 def calculateAndVisualizeEmbeddingsPCA(df, score_column = 'rating_score', plot = True, app = False):
+    if 'embedding' not in df.columns:
+        empty = np.array([]).reshape(0, 2)
+        fig = px.scatter(title="Embedding column required. Use a CSV from sentiment.py.")
+        fig.add_annotation(text="No embedding column.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(height=400)
+        return (empty, fig) if app else empty
     # Convert embeddings to a NumPy array
     embeddings = np.array(df['embedding'].tolist())
     ratings = df[score_column]
@@ -365,6 +378,12 @@ def calculateAndVisualizeEmbeddingsPCA(df, score_column = 'rating_score', plot =
 
 # PCA Visualization with DBSCAN
 def calculateAndVisualizeEmbeddingsPCA_with_DBSCAN(df, score_column = 'rating_score', eps=0.55, min_samples=10, plot = True, app = False):
+    if 'embedding' not in df.columns:
+        empty_df = pd.DataFrame(columns=['review_id', 'pca_cluster'])
+        fig = px.scatter(title="Embedding column required.")
+        fig.add_annotation(text="No embedding column.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(height=400)
+        return (empty_df, fig) if app else empty_df
     embeddings = np.array(df['embedding'].tolist())
     ratings = df[score_column]
     
@@ -416,6 +435,12 @@ def calculateAndVisualizeEmbeddingsPCA_with_DBSCAN(df, score_column = 'rating_sc
 
 # UMAP Visualization with DBSCAN
 def calculateAndVisualizeEmbeddingsUMAP_with_DBSCAN(df, eps=0.7, min_samples=10, plot = True, app = False):
+    if 'embedding' not in df.columns:
+        empty_df = pd.DataFrame(columns=['review_id', 'umap_cluster'])
+        fig = px.scatter(title="Embedding column required.")
+        fig.add_annotation(text="No embedding column.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(height=400)
+        return (empty_df, fig) if app else empty_df
     embeddings = np.array(df['embedding'].tolist())
     sentiment = df['sentiment_label']
     

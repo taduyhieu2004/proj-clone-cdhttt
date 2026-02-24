@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join('..')))
 from src import plots
 from src import ml_processing
-from src import llm_insights
 
 # Update necesary topics for insights extraction
 def updateTopicsDict(reviews):

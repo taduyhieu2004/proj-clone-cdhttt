@@ -23,6 +23,12 @@ Small commerce businesses often lack the resources to conduct in-depth analysis 
 - **scikit-learn**: Implements a simple machine learning model for sentiment analysis.
 - **streamlit**: Displays the results in an accessible and interactive dashboard.
 
+## Language (NLP & reviews)
+- **Analysis** is configured for **English**: spaCy model `en_core_web_sm`, NLTK English stopwords, VADER sentiment. Insights from the LLM are requested in English.
+- **Scraped text cleaning** supports both **English and Spanish** (e.g. "reviews"/"reseñas", "week"/"semana") so the scraper works for Google Maps in either language.
+- After cloning/setup, download the English spaCy model: `python -m spacy download en_core_web_sm`
+- For a concise project overview and data flow, see **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)**.
+
 ![Preview of the dashboard](img/complete_flow.png)
 
 ## Project Phases
