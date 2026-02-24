@@ -1,7 +1,0 @@
-review_id,review,local_guide_reviews,rating_score,service,meal_type,price_per_person_category,food_score,service_score,atmosphere_score,recommendations_list,date,avg_price_per_person
-0,"Great experience, staff were very friendly and the food was tasty.",,5,,,,5,5,5,[''],2024-01-10,
-1,the food is not good.,,1,,,,1,1,1,[''],2024-01-18,
-2,the dish is too salty.,,1,,,,1,1,1,[''],2024-02-18,
-3,the food is too bland.,,1,,,,1,1,1,[''],2024-03-18,
-4,bad food.,,1,,,,1,1,1,[''],2024-04-18,
-5,boring food.,,1,,,,1,1,1,[''],2024-05-18,
